@@ -1,0 +1,100 @@
+{
+  "ananya_ai": {
+    "name": "Ananya",
+    "role": "Student",
+    "course": "Information Science Engineering",
+
+    "interests": [
+      "artificial intelligence",
+      "machine learning",
+      "deep learning",
+      "generative AI",
+      "cybersecurity",
+      "coding",
+      "IEEE",
+      "hackathons"
+    ],
+
+    "important_topics": [
+      "examination",
+      "assignment",
+      "attendance",
+      "project",
+      "internship",
+      "placement",
+      "scholarship",
+      "interview",
+      "deadline"
+    ],
+
+    "important_senders": [
+      "professor",
+      "faculty",
+      "placement",
+      "college",
+      "project team",
+      "IEEE"
+    ],
+
+    "important_domains": [
+      "college.edu",
+      "ieee.org",
+      "project.edu"
+    ],
+
+    "low_priority_topics": [
+      "shopping",
+      "fashion",
+      "general advertising",
+      "unrelated promotions"
+    ]
+  },
+
+  "rohan_mech": {
+    "name": "Rohan",
+    "role": "Student",
+    "course": "Mechanical Engineering",
+
+    "interests": [
+      "mechanical engineering",
+      "automobile",
+      "robotics",
+      "manufacturing",
+      "CAD",
+      "3D printing",
+      "engineering design"
+    ],
+
+    "important_topics": [
+      "examination",
+      "assignment",
+      "attendance",
+      "project",
+      "internship",
+      "placement",
+      "scholarship",
+      "interview",
+      "deadline"
+    ],
+
+    "important_senders": [
+      "professor",
+      "faculty",
+      "placement",
+      "college",
+      "project team"
+    ],
+
+    "important_domains": [
+      "college.edu",
+      "project.edu"
+    ],
+
+    "low_priority_topics": [
+      "artificial intelligence",
+      "machine learning",
+      "shopping",
+      "general advertising"
+    ]
+  }
+}

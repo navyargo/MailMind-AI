@@ -1,0 +1,31 @@
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Credentials
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+client_secret*.json
+
+# Datasets
+data/*.csv
+data/*.parquet
+*.parquet
+
+# AI models
+models/
+checkpoints/
+outputs/
+*.pt
+*.pth
+*.safetensors
+*.bin
+
+# Temporary files
+.ipynb_checkpoints/
+.DS_Store
