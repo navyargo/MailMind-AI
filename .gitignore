@@ -1,10 +1,11 @@
+
 # Python environment
 .venv/
 venv/
 __pycache__/
 *.pyc
 
-# Credentials
+# Private credentials
 .env
 .env.*
 !.env.example
@@ -12,20 +13,51 @@ credentials.json
 token.json
 client_secret*.json
 
-# Datasets
+# Downloaded datasets
 data/*.csv
 data/*.parquet
 *.parquet
+train_final.csv
+validation.csv
+test_clean.csv
+train_clean.csv
 
-# AI models
+# AI model files
 models/
 checkpoints/
 outputs/
 *.pt
 *.pth
-*.safetensors
+
 *.bin
 
-# Temporary files
-.ipynb_checkpoints/
+# Keep trained DistilBERT weights using Git LFS
+!model/
+!model/*.safetensors
+# Old virtual environments
+.venv_old/
+.venv*/
+
+# Local secrets and caches
+.streamlit/secrets.toml
+.cache/
+# Trained AI model weights
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac system files
 .DS_Store
+
+# Secrets
+.env
+.env.*

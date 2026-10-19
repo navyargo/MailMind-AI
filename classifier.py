@@ -76,18 +76,21 @@ def calculate_priority_confidence(features, relevance_score):
     from a trained machine-learning model.
     """
 
-    evidence = [
-        relevance_score,
-        features["personal_relevance"],
-        features["sender_importance"],
-        features["semantic_relevance"],
-        features["urgency"],
-        features["action_required"],
-    ]
 
-    confidence = sum(evidence) / len(evidence)
+    confidence = (
+        0.15 * relevance_score
+        + 0.10 * features["personal_relevance"]
+        + 0.25 * features["sender_importance"]
+        + 0.10 * features["semantic_relevance"]
+        + 0.20 * features["urgency"]
+        + 0.20 * features["action_required"]
+    )
 
     return max(0.0, min(1.0, confidence))
+
+             
+
+
 
 
 # ==========================================================================
@@ -212,29 +215,29 @@ def generate_explanation(
 
     else:
 
-        if safeguard:
-            reasons.append(
+                if safeguard and features.get("ai_spam_probability", 0.0) >= 0.50:
+                 reasons.append(
                 "Spam-like characteristics were detected, but important "
                 "sender or personal-relevance evidence prevented direct "
                 "routing to Spam."
             )
 
-        elif relevance_score < PRIORITY_MIN_RELEVANCE:
-            reasons.append(
+                elif relevance_score < PRIORITY_MIN_RELEVANCE:
+                 reasons.append(
                 "The email does not have enough relevance evidence "
                 "for Priority."
             )
 
-        elif priority_confidence < PRIORITY_MIN_CONFIDENCE:
-            reasons.append(
+                elif priority_confidence < PRIORITY_MIN_CONFIDENCE:
+                 reasons.append(
                 "The system is not sufficiently confident to place "
                 "the email in Priority."
             )
 
-        else:
-            reasons.append(
+                else:
+                 reasons.append(
                 "The available evidence is uncertain, so Review is "
-                "used as the safe destination."
+                "used asdef spam_safeguard_triggered the safe destination."
             )
 
     return " ".join(reasons)
@@ -263,37 +266,62 @@ def route_email(features):
         relevance_score
     )
 
-    spam_confidence = calculate_spam_confidence(features)
+    # DistilBERT spam probability
+    ai_spam_probability = features["ai_spam_probability"]
+
+     # Retain the rule-based spam score for comparison
+    rule_spam_score = features["spam_score"]
+     # Use the trained model as the main spam signal
+    spam_confidence = ai_spam_probability
 
     safeguard = spam_safeguard_triggered(features)
 
-    # ------------------------------------------------------------------
-    # SPAM
-    # ------------------------------------------------------------------
+    # If AI and rule-based evidence strongly disagree,
+    # send the email for human review.
+    conflicting_evidence = (
+        ai_spam_probability >= 0.90
+        and rule_spam_score <= 0.20
+    )
 
+    # ------------------------------------------------------------------
+        # SPAM / REVIEW / PRIORITY DECISION
+        
+    
     if (
-        features["spam_score"] >= SPAM_MIN_SPAM_SCORE
-        and spam_confidence >= SPAM_MIN_CONFIDENCE
+        ai_spam_probability >= 0.90
         and not safeguard
+        and not conflicting_evidence
     ):
         category = SPAM
 
-    # ------------------------------------------------------------------
-    # PRIORITY
-    # ------------------------------------------------------------------
+    elif ai_spam_probability >= 0.50 or conflicting_evidence:
+        category = REVIEW
 
     elif (
-        relevance_score >= PRIORITY_MIN_RELEVANCE
-        and priority_confidence >= PRIORITY_MIN_CONFIDENCE
+        (
+            relevance_score >= PRIORITY_MIN_RELEVANCE
+            and priority_confidence >= PRIORITY_MIN_CONFIDENCE
+        )
+        or (
+            features["sender_importance"] >= 0.80
+            and features["action_required"] >= 0.40
+            and features["urgency"] >= 0.40
+            and ai_spam_probability < 0.20
+        )
     ):
         category = PRIORITY
+
+    else:
+        category = REVIEW
+
+    
+   
 
     # ------------------------------------------------------------------
     # REVIEW / ABSTENTION
     # ------------------------------------------------------------------
 
-    else:
-        category = REVIEW
+    
 
     explanation = generate_explanation(
         category=category,

@@ -1,4 +1,5 @@
 """
+
 feature_extraction.py
 
 Extract interpretable features from an email for the Personalized
@@ -18,12 +19,13 @@ All scores are normalized to 0..1.
 This is the INITIAL rule-based feature extractor. Later phases can replace
 or augment these rules with trained ML/NLP models.
 """
-
+from semantic_ai import semantic_similarity, semantic_priority_score
 import json
 import re
 from pathlib import Path
 
 from config import DEMO_PROFILES_JSON
+from distilbert_ai import predict_spam
 
 
 # --------------------------------------------------------------------------
@@ -157,28 +159,24 @@ def sender_importance_score(sender, profile):
 # Semantic/topic relevance
 # --------------------------------------------------------------------------
 
+
 def semantic_relevance_score(subject, body, profile):
-    """
-    Initial interpretable approximation of semantic relevance.
+    """Measure semantic relevance using MiniLM."""
 
-    This is intentionally simple for the first working prototype.
-    Later this function can use TF-IDF, sentence embeddings or a
-    transformer model.
-    """
+    email_text = f"{subject}\n{body}"
 
-    text = normalize_text(f"{subject} {body}")
-
-    relevant_terms = (
+    interests = (
         profile.get("interests", [])
         + profile.get("important_topics", [])
     )
 
-    matches = count_matches(text, relevant_terms)
+    if not interests:
+        return 0.0
 
-    if matches == 0:
-        return 0.10
+    similarity = semantic_similarity(email_text, interests)
 
-    return clamp(0.25 + (matches * 0.15))
+    return round(max(0.0, min(1.0, similarity)), 4)
+   
 
 
 # --------------------------------------------------------------------------
@@ -217,6 +215,7 @@ def urgency_score(subject, body):
 # Action required
 # --------------------------------------------------------------------------
 
+
 ACTION_TERMS = (
     "submit",
     "register",
@@ -229,7 +228,12 @@ ACTION_TERMS = (
     "respond",
     "apply",
     "action required",
+    "exam",
+    "examination",
+    "assessment",
+    "scheduled",
 )
+
 
 
 def action_required_score(subject, body):
@@ -373,6 +377,12 @@ def extract_features(email, profile_id):
                 body,
                 profile
             ),
+            
+        "semantic_priority":
+            semantic_priority_score(
+                f"{subject}. {body}"
+            ),
+
 
         "urgency":
             urgency_score(
@@ -389,46 +399,17 @@ def extract_features(email, profile_id):
         "historical_preference":
             historical_preference_score(),
 
-        "spam_score":
+                "spam_score":
             spam_score(
                 sender,
                 subject,
                 body
             ),
+
+        "ai_spam_probability":
+            predict_spam(
+                f"{subject}\n{body}"
+            )["spam_probability"],
     }
 
     return features
-
-
-# --------------------------------------------------------------------------
-# Simple manual test
-# --------------------------------------------------------------------------
-
-if __name__ == "__main__":
-
-    test_email = {
-        "sender": "professor@college.edu",
-        "subject": "Assignment Deadline",
-        "body":
-            "Submit the machine learning assignment "
-            "before tomorrow 5 PM."
-    }
-
-    print("\nTesting feature extraction\n")
-
-    for profile_id in ("ananya_ai", "rohan_mech"):
-
-        print(f"PROFILE: {profile_id}")
-
-        results = extract_features(
-            test_email,
-            profile_id
-        )
-
-        for feature, value in results.items():
-            print(
-                f"  {feature:25s}: "
-                f"{value:.2f}"
-            )
-
-        print()

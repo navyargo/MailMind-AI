@@ -1,0 +1,10 @@
+torch
+transformers
+sentence-transformers
+scikit-learn
+pandas
+pyarrow
+datasets
+accelerate
+streamlit
+truststore

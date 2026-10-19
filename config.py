@@ -154,7 +154,7 @@ SPAM_MIN_CONFIDENCE = 0.90
 #
 
 PRIORITY_MIN_RELEVANCE = 0.65
-PRIORITY_MIN_CONFIDENCE = 0.70
+PRIORITY_MIN_CONFIDENCE = 0.65
 
 
 # ==========================================================================
