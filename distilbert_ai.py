@@ -1,8 +1,7 @@
-
 from pathlib import Path
 from transformers import pipeline
 
-# Path to our fine-tuned DistilBERT model
+# Path to the trained DistilBERT model
 MODEL_PATH = Path(__file__).resolve().parent / "model"
 
 print("Loading MailMind AI trained DistilBERT model...")
@@ -14,12 +13,14 @@ spam_classifier = pipeline(
     device=-1
 )
 
+
 def predict_spam(email):
     results = spam_classifier(
         email,
         top_k=None,
         truncation=True,
-        max_length=256
+        max_length=256,
+        return_token_type_ids=False
     )
 
     scores = {
@@ -45,8 +46,6 @@ if __name__ == "__main__":
 
     for email in emails:
         result = predict_spam(email)
-
         print("\nEmail:", email)
         print("Prediction:", result["prediction"])
         print("Spam probability:", result["spam_probability"])
-
