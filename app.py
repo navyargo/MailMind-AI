@@ -1,3 +1,4 @@
+nano app.py
 import io
 import json
 import base64
@@ -138,8 +139,10 @@ if st.session_state.get("profile_user_id") != user_id:
 if "personal_profile" not in st.session_state:
     try:
         st.session_state.personal_profile = load_user_profile(user_id)
-    except Exception:
-        st.error("Unable to load your saved profile. Please retry later; no profile was overwritten.")
+    except Exception as e:
+        st.error("Unable to load your saved profile.")
+        st.error(f"Error type: {type(e).__name__}")
+        st.error(f"Error details: {str(e)[:300]}")
         st.stop()
 
 with st.sidebar:
