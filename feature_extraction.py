@@ -253,7 +253,7 @@ def action_required_score(subject, body):
 # Historical preference
 # --------------------------------------------------------------------------
 
-def historical_preference_score():
+def historical_preference_score(profile=None, sender=""):
     """
     Initial neutral historical-preference score.
 
@@ -267,7 +267,13 @@ def historical_preference_score():
         Mark topic relevant
     """
 
-    return 0.50
+    if not profile:
+        return 0.50
+    sender = normalize_text(sender)
+    events = profile.get("learned_senders", {}).get(sender, [])
+    if len(events) < 3:
+        return 0.50
+    return clamp(0.50 + max(-0.30, min(0.30, sum(events[-20:]) * 0.05)))
 
 
 # --------------------------------------------------------------------------
@@ -351,7 +357,7 @@ def extract_features(email, profile_id):
         Feature scores in the range 0..1.
     """
 
-    profile = get_profile(profile_id)
+    profile = profile_id if isinstance(profile_id, dict) else get_profile(profile_id)
 
     sender = email.get("sender", "")
     subject = email.get("subject", "")
@@ -397,7 +403,7 @@ def extract_features(email, profile_id):
             ),
 
         "historical_preference":
-            historical_preference_score(),
+            historical_preference_score(profile, sender),
 
                 "spam_score":
             spam_score(

@@ -1,4 +1,5 @@
 import io
+import json
 import base64
 import re
 from email import policy
@@ -24,25 +25,77 @@ st.markdown("""
 
 if "results" not in st.session_state:
     st.session_state.results = []
-if "last_profile" not in st.session_state:
-    st.session_state.last_profile = None
+if "personal_profile" not in st.session_state:
+    st.session_state.personal_profile = None
 
 with st.sidebar:
     st.title("📧 MailMind AI")
     st.caption("Personalized, uncertainty-aware email triage")
-    profile_name = st.selectbox("Personalization Profile", ["Ananya - AI Student", "Rohan - Mechanical Student"])
-    profile_id = "ananya_ai" if profile_name == "Ananya - AI Student" else "rohan_mech"
-    if st.session_state.last_profile != profile_id:
-        st.session_state.results = []
-        st.session_state.last_profile = profile_id
+    st.caption("Your own profile is used for classification, not demo profiles.")
     st.info("Uses DistilBERT, MiniLM and personalized decision rules.")
     if st.button("Clear Inbox", use_container_width=True):
         st.session_state.results = []
         st.rerun()
-    st.caption("Gmail Beta requires approved Google OAuth test access. Avoid using sensitive messages for early tests.")
+    st.caption("Beta: profiles and feedback are session-only. Download your profile to retain it.")
 
 st.title("📧 MailMind AI — Your Smart Inbox")
 st.write("Paste emails or drag and drop files. MailMind AI extracts available details and categorizes each message as Priority, Review or Spam.")
+
+
+def terms(text):
+    return [x.strip() for x in re.split(r"[,\n]", text) if x.strip()]
+
+
+def profile_editor():
+    st.subheader("👤 Personalize MailMind AI")
+    st.caption("Set up your profile before classifying emails. Edit it whenever your interests change.")
+    current = st.session_state.personal_profile or {}
+    with st.form("profile_form"):
+        name = st.text_input("Profile name", value=current.get("name", ""))
+        role = st.text_input("Your role / course", value=current.get("role", ""))
+        interests = st.text_area("Interests (comma-separated)", value=", ".join(current.get("interests", [])))
+        topics = st.text_area("Important topics", value=", ".join(current.get("important_topics", [])))
+        senders = st.text_area("Important senders", value=", ".join(current.get("important_senders", [])))
+        domains = st.text_area("Important email domains", value=", ".join(current.get("important_domains", [])))
+        low = st.text_area("Less relevant topics", value=", ".join(current.get("low_priority_topics", [])))
+        submitted = st.form_submit_button("Save personalization", type="primary")
+        if submitted:
+            if not name.strip() or not (interests.strip() or topics.strip()):
+                st.error("Enter your name and at least one interest or important topic.")
+            else:
+                st.session_state.personal_profile = {
+                    "name": name.strip(), "role": role.strip(), "course": role.strip(),
+                    "interests": terms(interests), "important_topics": terms(topics),
+                    "important_senders": terms(senders), "important_domains": terms(domains),
+                    "low_priority_topics": terms(low),
+                    "learned_senders": current.get("learned_senders", {}),
+                }
+                st.session_state.results = []
+                st.rerun()
+    if st.session_state.personal_profile:
+        st.success("Personalization active. New emails use this profile.")
+        st.download_button("Download profile + learned feedback (JSON)",
+            json.dumps(st.session_state.personal_profile, indent=2),
+            file_name="mailmind_profile.json", mime="application/json")
+    restore = st.file_uploader("Restore a previously downloaded profile", type="json", key="profile_restore")
+    if restore and st.button("Restore profile"):
+        try:
+            profile = json.loads(restore.getvalue())
+            if not isinstance(profile, dict) or not isinstance(profile.get("interests"), list):
+                raise ValueError("Invalid profile format")
+            st.session_state.personal_profile = profile
+            st.session_state.results = []
+            st.rerun()
+        except (ValueError, TypeError) as exc:
+            st.error(f"Unable to restore profile: {exc}")
+
+
+profile_editor()
+if not st.session_state.personal_profile:
+    st.info("Create your personalization profile above to unlock email classification and Gmail sync.")
+    st.stop()
+
+profile_id = st.session_state.personal_profile
 
 
 def parse_email_text(text):
@@ -284,6 +337,22 @@ for idx, record in enumerate(filtered):
         st.info(record["explanation"])
         if st.checkbox("Show Detailed Feature Scores", key=f"features_{idx}"):
             st.json(record["features"])
+        st.caption("Was this classification right? Correct it to teach MailMind your preferences.")
+        correction = st.selectbox("Correct category", ["PRIORITY", "REVIEW", "SPAM"],
+                                  index=["PRIORITY", "REVIEW", "SPAM"].index(category),
+                                  key=f"correction_{idx}")
+        if st.button("Save correction", key=f"feedback_{idx}"):
+            if correction != category:
+                record["category"] = correction
+                record["explanation"] = "Corrected by user (feedback saved in this session)."
+                sender_key = record["sender"].lower().strip()
+                history = st.session_state.personal_profile.setdefault("learned_senders", {})
+                events = history.setdefault(sender_key, [])
+                events.append(1 if correction == "PRIORITY" else -1 if correction == "SPAM" else 0)
+                st.success("Correction recorded. After 3 corrections for this sender, future emails gain a modest learned adjustment.")
+                st.rerun()
+            else:
+                st.info("No category change was made.")
 
 if results:
     cols = ["sender", "subject", "body", "category", "relevance", "confidence", "spam_probability", "explanation"]
@@ -291,4 +360,4 @@ if results:
     st.download_button("⬇️ Download Classified Emails", data=export_df.to_csv(index=False), file_name="mailmind_classified_emails.csv", mime="text/csv", use_container_width=True)
 
 st.divider()
-st.caption("MailMind AI | Personalized, uncertainty-aware email triage prototype. Scores are experimental and not calibrated probabilities.")
+st.caption("MailMind AI | Session-only personalization prototype. Scores are experimental and not calibrated probabilities.")
