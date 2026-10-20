@@ -195,15 +195,28 @@ with gmail_tab:
             if st.button("Disconnect Gmail", key="disconnect_gmail"):
                 # Clear this browser session; revocation can be added later.
                 st.session_state.pop("gmail_token", None)
+                st.session_state.pop("gmail_next_page", None)
                 st.session_state.results = [r for r in st.session_state.results if r.get("source") != "gmail"]
                 st.rerun()
-            if st.button("Fetch and classify 15 Gmail messages", type="primary"):
+            st.caption("Sync your entire Inbox in pages of up to 100 messages. No total limit; each click continues where the last batch ended.")
+            if st.button("Start a fresh Inbox sync"):
+                st.session_state.pop("gmail_next_page", None)
+                st.rerun()
+            if st.button("Sync next Gmail batch", type="primary"):
                 try:
                     token = oauth.refresh_token(st.session_state.gmail_token)
                     st.session_state.gmail_token = token
                     credentials = Credentials(token=token["access_token"])
                     gmail = build("gmail", "v1", credentials=credentials, cache_discovery=False)
-                    messages = gmail.users().messages().list(userId="me", labelIds=["INBOX"], maxResults=15).execute().get("messages", [])
+                    # Gmail returns at most 500 message IDs per API page. Use smaller
+                    # pages to keep Streamlit responsive; continue until all pages are read.
+                    page_token = st.session_state.get("gmail_next_page")
+                    request = {"userId": "me", "labelIds": ["INBOX"], "maxResults": 100}
+                    if page_token:
+                        request["pageToken"] = page_token
+                    page = gmail.users().messages().list(**request).execute()
+                    messages = page.get("messages", [])
+                    st.session_state.gmail_next_page = page.get("nextPageToken")
                     parsed = []
                     ids = []
                     for item in messages:
@@ -215,7 +228,7 @@ with gmail_tab:
                         except ValueError:
                             continue
                     if not parsed:
-                        st.warning("No readable plain-text emails found in the latest 15 Inbox messages.")
+                        st.warning("No readable plain-text emails found in this Gmail batch.")
                     else:
                         progress = st.progress(0)
                         records = []
@@ -229,8 +242,14 @@ with gmail_tab:
                             except Exception:
                                 failures += 1
                             progress.progress((index + 1) / len(parsed))
-                        st.session_state.results = records + [r for r in st.session_state.results if r.get("source") != "gmail"]
-                        st.success(f"Classified {len(records)} Gmail emails. {failures} could not be classified.")
+                        # Preserve previous batches and update any emails seen again.
+                        existing = [r for r in st.session_state.results if r.get("gmail_id") not in {x["gmail_id"] for x in records}]
+                        st.session_state.results = records + existing
+                        st.success(f"Classified {len(records)} emails in this batch. {failures} could not be classified.")
+                    if st.session_state.get("gmail_next_page"):
+                        st.info("More Gmail messages remain. Click 'Sync next Gmail batch' to continue. There is no total email limit.")
+                    else:
+                        st.success("Reached the end of your Gmail Inbox. To check for new messages, click 'Start a fresh Inbox sync'.")
                 except Exception as exc:
                     st.error(f"Unable to fetch Gmail messages: {type(exc).__name__}. Check OAuth permissions and deployment logs.")
     except KeyError:
