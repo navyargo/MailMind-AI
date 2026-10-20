@@ -1,10 +1,11 @@
-torch
-transformers
-sentence-transformers
+torch==2.2.2
+transformers==4.41.2
+sentence-transformers==3.0.1
+numpy==1.26.4
+streamlit==1.39.0
+pyarrow==17.0.0
 scikit-learn
 pandas
-pyarrow
-datasets
+datasets==2.20.0
 accelerate
-streamlit
 truststore
