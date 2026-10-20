@@ -2,6 +2,7 @@ import io
 import json
 import base64
 import re
+import requests
 from email import policy
 from email.parser import BytesParser, Parser
 
@@ -25,21 +26,133 @@ st.markdown("""
 
 if "results" not in st.session_state:
     st.session_state.results = []
+
+# All database calls run on the Streamlit server. Never send the secret key to the browser.
+@st.cache_resource
+def db_settings():
+    cfg = st.secrets["supabase"]
+    return str(cfg["url"]).rstrip("/"), str(cfg["key"])
+
+
+def db_request(method, table, *, params=None, payload=None, prefer=None):
+    url, key = db_settings()
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    if prefer:
+        headers["Prefer"] = prefer
+    response = requests.request(method, f"{url}/rest/v1/{table}", headers=headers,
+                                params=params, json=payload, timeout=20)
+    response.raise_for_status()
+    return response.json() if response.content else None
+
+
+def load_user_profile(user_id):
+    rows = db_request("GET", "user_profiles", params={"user_id": f"eq.{user_id}", "select": "*", "limit": "1"})
+    if not rows:
+        return None
+    row = rows[0]
+    profile = {field: row.get(field) or [] for field in (
+        "interests", "important_topics", "important_senders", "important_domains", "low_priority_topics")}
+    profile.update({"name": row.get("name") or "", "role": row.get("role") or "", "course": row.get("role") or ""})
+    profile["learned_senders"] = load_learned_senders(user_id)
+    return profile
+
+
+def load_learned_senders(user_id):
+    # Replay saved feedback to recover learned preferences across sessions.
+    rows = db_request("GET", "user_feedback", params={
+        "user_id": f"eq.{user_id}", "select": "sender,corrected_category",
+        "order": "created_at.asc,id.asc", "limit": "10000"}) or []
+    learned = {}
+    for row in rows:
+        sender = (row.get("sender") or "").lower().strip()
+        category = (row.get("corrected_category") or "").upper()
+        if sender and category in ("PRIORITY", "REVIEW", "SPAM"):
+            learned.setdefault(sender, []).append(1 if category == "PRIORITY" else -1 if category == "SPAM" else 0)
+    return learned
+
+
+def save_user_profile(user_id, profile):
+    fields = ("interests", "important_topics", "important_senders", "important_domains", "low_priority_topics")
+    payload = {"user_id": user_id, "name": profile.get("name", ""), "role": profile.get("role", ""),
+               **{field: profile.get(field, []) for field in fields}}
+    db_request("POST", "user_profiles", params={"on_conflict": "user_id"},
+               payload=payload, prefer="resolution=merge-duplicates,return=minimal")
+
+
+def save_feedback(user_id, record, predicted, corrected):
+    db_request("POST", "user_feedback", payload={
+        "user_id": user_id, "sender": record["sender"], "subject": record["subject"],
+        "predicted_category": predicted, "corrected_category": corrected}, prefer="return=minimal")
+
+
+# Authenticate first: do not let users choose another person's database identity.
+try:
+    google_settings = st.secrets["google_oauth"]
+    oauth = OAuth2Component(
+        google_settings["client_id"], google_settings["client_secret"],
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        "https://oauth2.googleapis.com/token",
+        "https://oauth2.googleapis.com/token",
+        "https://oauth2.googleapis.com/revoke",
+    )
+    db_settings()
+except Exception:
+    st.error("Google OAuth or Supabase settings are missing/invalid in Streamlit Secrets.")
+    st.stop()
+
+st.title("📧 MailMind AI — Your Smart Inbox")
+if "gmail_token" not in st.session_state:
+    st.info("Connect Gmail first. Your verified Gmail account identifies your saved personalization profile.")
+    auth_result = oauth.authorize_button(
+        "Connect Gmail",
+        redirect_uri="https://mailmind-triage-ai.streamlit.app/component/streamlit_oauth.authorize_button",
+        scope="https://www.googleapis.com/auth/gmail.modify",
+        key="gmail_oauth", pkce="S256", use_container_width=True,
+        extras_params={"access_type": "offline", "prompt": "consent"},
+    )
+    if auth_result and auth_result.get("token"):
+        st.session_state.gmail_token = auth_result["token"]
+        st.rerun()
+    st.stop()
+
+try:
+    token = oauth.refresh_token(st.session_state.gmail_token)
+    st.session_state.gmail_token = token
+    credentials = Credentials(token=token["access_token"])
+    gmail_identity_service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    user_id = gmail_identity_service.users().getProfile(userId="me").execute()["emailAddress"].strip().lower()
+except Exception:
+    st.error("Could not verify your Gmail account. Disconnect and reconnect Gmail.")
+    if st.button("Disconnect Gmail"):
+        st.session_state.clear()
+        st.rerun()
+    st.stop()
+
+# Clear all user-specific state if the signed-in account changes.
+if st.session_state.get("profile_user_id") != user_id:
+    st.session_state.profile_user_id = user_id
+    st.session_state.pop("personal_profile", None)
+    st.session_state.pop("gmail_next_page", None)
+    st.session_state.results = []
+
 if "personal_profile" not in st.session_state:
-    st.session_state.personal_profile = None
+    try:
+        st.session_state.personal_profile = load_user_profile(user_id)
+    except Exception:
+        st.error("Unable to load your saved profile. Please retry later; no profile was overwritten.")
+        st.stop()
 
 with st.sidebar:
     st.title("📧 MailMind AI")
-    st.caption("Personalized, uncertainty-aware email triage")
-    st.caption("Your own profile is used for classification, not demo profiles.")
-    st.info("Uses DistilBERT, MiniLM and personalized decision rules.")
+    st.caption(f"Signed in: {user_id}")
+    st.info("DistilBERT + MiniLM + persistent personalization")
+    if st.button("Disconnect Gmail", key="disconnect_account"):
+        st.session_state.clear()
+        st.rerun()
     if st.button("Clear Inbox", use_container_width=True):
         st.session_state.results = []
         st.rerun()
-    st.caption("Beta: profiles and feedback are session-only. Download your profile to retain it.")
-
-st.title("📧 MailMind AI — Your Smart Inbox")
-st.write("Paste emails or drag and drop files. MailMind AI extracts available details and categorizes each message as Priority, Review or Spam.")
+    st.caption("Your profile and corrections are saved in Supabase; inbox results are session-only.")
 
 
 def terms(text):
@@ -48,7 +161,7 @@ def terms(text):
 
 def profile_editor():
     st.subheader("👤 Personalize MailMind AI")
-    st.caption("Set up your profile before classifying emails. Edit it whenever your interests change.")
+    st.caption("Create once; edit anytime. Your changes are saved across logins.")
     current = st.session_state.personal_profile or {}
     with st.form("profile_form"):
         name = st.text_input("Profile name", value=current.get("name", ""))
@@ -63,36 +176,28 @@ def profile_editor():
             if not name.strip() or not (interests.strip() or topics.strip()):
                 st.error("Enter your name and at least one interest or important topic.")
             else:
-                st.session_state.personal_profile = {
+                new_profile = {
                     "name": name.strip(), "role": role.strip(), "course": role.strip(),
                     "interests": terms(interests), "important_topics": terms(topics),
                     "important_senders": terms(senders), "important_domains": terms(domains),
                     "low_priority_topics": terms(low),
                     "learned_senders": current.get("learned_senders", {}),
                 }
-                st.session_state.results = []
-                st.rerun()
+                try:
+                    save_user_profile(user_id, new_profile)
+                except Exception:
+                    st.error("Database save failed. Your old profile is unchanged; please retry.")
+                else:
+                    st.session_state.personal_profile = new_profile
+                    st.session_state.results = []
+                    st.rerun()
     if st.session_state.personal_profile:
-        st.success("Personalization active. New emails use this profile.")
-        st.download_button("Download profile + learned feedback (JSON)",
-            json.dumps(st.session_state.personal_profile, indent=2),
-            file_name="mailmind_profile.json", mime="application/json")
-    restore = st.file_uploader("Restore a previously downloaded profile", type="json", key="profile_restore")
-    if restore and st.button("Restore profile"):
-        try:
-            profile = json.loads(restore.getvalue())
-            if not isinstance(profile, dict) or not isinstance(profile.get("interests"), list):
-                raise ValueError("Invalid profile format")
-            st.session_state.personal_profile = profile
-            st.session_state.results = []
-            st.rerun()
-        except (ValueError, TypeError) as exc:
-            st.error(f"Unable to restore profile: {exc}")
+        st.success("Your saved profile is active. New emails use these preferences.")
 
 
 profile_editor()
 if not st.session_state.personal_profile:
-    st.info("Create your personalization profile above to unlock email classification and Gmail sync.")
+    st.info("Create your personalization profile to unlock classification and Gmail sync.")
     st.stop()
 
 profile_id = st.session_state.personal_profile
@@ -216,41 +321,9 @@ with upload_tab:
 
 
 with gmail_tab:
-    st.subheader("Connect your Gmail (Beta)")
-    st.caption("For Google OAuth-approved test users only. Gmail is read-only in this version; no messages are changed or deleted.")
+    st.subheader("Gmail Inbox (Beta)")
+    st.caption("Connected as " + user_id + ". Gmail is read-only in this version.")
     try:
-        settings = st.secrets["google_oauth"]
-        oauth = OAuth2Component(
-            settings["client_id"],
-            settings["client_secret"],
-            "https://accounts.google.com/o/oauth2/v2/auth",
-            "https://oauth2.googleapis.com/token",
-            "https://oauth2.googleapis.com/token",
-            "https://oauth2.googleapis.com/revoke",
-        )
-        # This component uses a dedicated OAuth callback endpoint, NOT the homepage.
-        redirect_uri = "https://mailmind-triage-ai.streamlit.app/component/streamlit_oauth.authorize_button"
-        if "gmail_token" not in st.session_state:
-            auth_result = oauth.authorize_button(
-                "Connect Gmail",
-                redirect_uri=redirect_uri,
-                scope="https://www.googleapis.com/auth/gmail.modify",
-                key="gmail_oauth",
-                pkce="S256",
-                use_container_width=True,
-                extras_params={"access_type": "offline", "prompt": "consent"},
-            )
-            if auth_result and auth_result.get("token"):
-                st.session_state.gmail_token = auth_result["token"]
-                st.rerun()
-        else:
-            st.success("Gmail authorized for this browser session.")
-            if st.button("Disconnect Gmail", key="disconnect_gmail"):
-                # Clear this browser session; revocation can be added later.
-                st.session_state.pop("gmail_token", None)
-                st.session_state.pop("gmail_next_page", None)
-                st.session_state.results = [r for r in st.session_state.results if r.get("source") != "gmail"]
-                st.rerun()
             st.caption("Sync your entire Inbox in pages of up to 100 messages. No total limit; each click continues where the last batch ended.")
             if st.button("Start a fresh Inbox sync"):
                 st.session_state.pop("gmail_next_page", None)
@@ -343,14 +416,19 @@ for idx, record in enumerate(filtered):
                                   key=f"correction_{idx}")
         if st.button("Save correction", key=f"feedback_{idx}"):
             if correction != category:
-                record["category"] = correction
-                record["explanation"] = "Corrected by user (feedback saved in this session)."
-                sender_key = record["sender"].lower().strip()
-                history = st.session_state.personal_profile.setdefault("learned_senders", {})
-                events = history.setdefault(sender_key, [])
-                events.append(1 if correction == "PRIORITY" else -1 if correction == "SPAM" else 0)
-                st.success("Correction recorded. After 3 corrections for this sender, future emails gain a modest learned adjustment.")
-                st.rerun()
+                try:
+                    save_feedback(user_id, record, category, correction)
+                except Exception:
+                    st.error("Feedback could not be saved to the database. Please retry.")
+                else:
+                    record["category"] = correction
+                    record["explanation"] = "Corrected by user (saved in Supabase)."
+                    sender_key = record["sender"].lower().strip()
+                    history = st.session_state.personal_profile.setdefault("learned_senders", {})
+                    events = history.setdefault(sender_key, [])
+                    events.append(1 if correction == "PRIORITY" else -1 if correction == "SPAM" else 0)
+                    st.success("Correction saved permanently. Repeated feedback influences future messages.")
+                    st.rerun()
             else:
                 st.info("No category change was made.")
 
@@ -360,4 +438,4 @@ if results:
     st.download_button("⬇️ Download Classified Emails", data=export_df.to_csv(index=False), file_name="mailmind_classified_emails.csv", mime="text/csv", use_container_width=True)
 
 st.divider()
-st.caption("MailMind AI | Session-only personalization prototype. Scores are experimental and not calibrated probabilities.")
+st.caption("MailMind AI | Profiles and feedback persist in Supabase. Classification scores are experimental.")
