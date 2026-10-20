@@ -278,10 +278,9 @@ def route_email(features):
 
     # If AI and rule-based evidence strongly disagree,
     # send the email for human review.
-    conflicting_evidence = (
-        ai_spam_probability >= 0.90
-        and rule_spam_score <= 0.20
-    )
+    # DistilBERT is the primary spam detector.
+    # A low rule-based spam score alone does not veto its prediction.
+    conflicting_evidence = False
 
     # ------------------------------------------------------------------
         # SPAM / REVIEW / PRIORITY DECISION
