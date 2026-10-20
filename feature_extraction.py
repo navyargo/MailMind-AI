@@ -59,7 +59,10 @@ def count_matches(text, terms):
     matches = 0
 
     for term in terms:
-        if normalize_text(term) in text:
+        if normalize_text(term) and re.search(
+            r"(?<!\w)" + re.escape(normalize_text(term)) + r"(?!\w)",
+            text
+        ):
             matches += 1
 
     return matches
@@ -132,27 +135,36 @@ def personal_relevance_score(subject, body, profile):
 # --------------------------------------------------------------------------
 
 def sender_importance_score(sender, profile):
-    """
-    Estimate whether the sender belongs to an important person,
-    organization or domain.
-    """
-
+    """Score explicitly configured email addresses and domains."""
     sender = normalize_text(sender)
+    addresses = re.findall(
+        r"[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}",
+        sender
+    )
+    if not addresses:
+        return 0.10
 
-    important_senders = profile.get("important_senders", [])
-    important_domains = profile.get("important_domains", [])
+    address = addresses[-1]
+    domain = address.split("@", 1)[1]
 
-    score = 0.10
+    important_senders = {
+        normalize_text(x)
+        for x in profile.get("important_senders", [])
+        if "@" in str(x)
+    }
+    important_domains = {
+        normalize_text(x).lstrip("@")
+        for x in profile.get("important_domains", [])
+        if "." in str(x) and "@" not in str(x)
+    }
 
-    for item in important_senders:
-        if normalize_text(item) in sender:
-            score += 0.40
+    if address in important_senders:
+        return 1.0
 
-    for domain in important_domains:
-        if normalize_text(domain) in sender:
-            score += 0.60
+    if domain in important_domains:
+        return 0.90
 
-    return clamp(score)
+    return 0.10
 
 
 # --------------------------------------------------------------------------
