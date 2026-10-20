@@ -303,8 +303,8 @@ def route_email(features):
             and priority_confidence >= PRIORITY_MIN_CONFIDENCE
         )
         or (
-            features.get("semantic_relevance", 0) >= 0.45
-            and features.get("personal_relevance", 0) >= 0.45
+            features.get("semantic_relevance", 0) >= 0.50
+            and features.get("personal_relevance", 0) >= 0.25
             and (
                 features.get("urgency", 0) >= 0.40
                 or features.get("action_required", 0) >= 0.40
