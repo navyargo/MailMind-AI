@@ -1,4 +1,3 @@
-nano app.py
 import io
 import json
 import base64
