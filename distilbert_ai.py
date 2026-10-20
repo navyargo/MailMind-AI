@@ -1,9 +1,11 @@
 from pathlib import Path
 from transformers import pipeline
+from download_model import ensure_model
 
 # Path to the trained DistilBERT model
 MODEL_PATH = Path(__file__).resolve().parent / "model"
 
+ensure_model()
 print("Loading MailMind AI trained DistilBERT model...")
 
 spam_classifier = pipeline(
