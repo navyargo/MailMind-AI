@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from classifier import classify_email
+from mailmind_routing import choose_category
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from streamlit_oauth import OAuth2Component
@@ -138,10 +139,8 @@ if st.session_state.get("profile_user_id") != user_id:
 if "personal_profile" not in st.session_state:
     try:
         st.session_state.personal_profile = load_user_profile(user_id)
-    except Exception as e:
-        st.error("Unable to load your saved profile.")
-        st.error(f"Error type: {type(e).__name__}")
-        st.error(f"Error details: {str(e)[:300]}")
+    except Exception:
+        st.error("Unable to load your saved profile. Please retry later; no profile was overwritten.")
         st.stop()
 
 with st.sidebar:
@@ -171,7 +170,7 @@ def profile_editor():
         interests = st.text_area("Interests (comma-separated)", value=", ".join(current.get("interests", [])))
         topics = st.text_area("Important topics", value=", ".join(current.get("important_topics", [])))
         senders = st.text_area("Important senders", value=", ".join(current.get("important_senders", [])))
-        domains = st.text_area("Important email domains", value=", ".join(current.get("important_domains", [])))
+        domains = st.text_area("Important email domains (e.g. github.com, ieee.org; not topic words)", value=", ".join(current.get("important_domains", [])))
         low = st.text_area("Less relevant topics", value=", ".join(current.get("low_priority_topics", [])))
         submitted = st.form_submit_button("Save personalization", type="primary")
         if submitted:
@@ -245,13 +244,14 @@ def parse_eml(raw_bytes):
 
 def analyze_email(email):
     result = classify_email(email, profile_id)
+    final_category, final_explanation = choose_category(email, profile_id, result)
     return {
         "sender": email["sender"], "subject": email["subject"], "body": email["body"],
-        "category": str(result["category"]).upper(),
+        "category": final_category,
         "relevance": result["relevance_score"],
         "confidence": result["priority_confidence"],
         "spam_probability": result["features"]["ai_spam_probability"],
-        "explanation": result["explanation"], "features": result["features"],
+        "explanation": final_explanation, "features": result["features"],
     }
 
 
@@ -440,4 +440,4 @@ if results:
     st.download_button("⬇️ Download Classified Emails", data=export_df.to_csv(index=False), file_name="mailmind_classified_emails.csv", mime="text/csv", use_container_width=True)
 
 st.divider()
-st.caption("MailMind AI | Profiles and feedback persist in Supabase. Classification scores are experimental.")
+st.caption("MailMind AI | Profiles and feedback persist in Supabase. AI scores and preference-aware routing are experimental; sender addresses are not independently authenticated.")
