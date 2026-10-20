@@ -269,7 +269,7 @@ filter_choice = st.radio("Filter Emails", ["All", "PRIORITY", "REVIEW", "SPAM"],
 filtered = [r for r in results if filter_choice == "All" or r["category"] == filter_choice]
 if not filtered:
     st.info("Paste or upload emails to see classification results here.")
-for record in filtered:
+for idx, record in enumerate(filtered):
     category = record["category"]
     icon = {"PRIORITY": "🔴", "REVIEW": "🟡", "SPAM": "🚫"}.get(category, "✉️")
     with st.expander(f"{icon} {record['subject']} — {record['sender']} [{category}]"):
@@ -282,7 +282,7 @@ for record in filtered:
         c.metric("Spam Probability", f"{record['spam_probability']:.1%}")
         st.write("**AI Explanation**")
         st.info(record["explanation"])
-        with st.expander("Detailed Feature Scores"):
+        if st.checkbox("Show Detailed Feature Scores", key=f"features_{idx}"):
             st.json(record["features"])
 
 if results:
