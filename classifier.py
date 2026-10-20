@@ -287,6 +287,24 @@ def route_email(features):
         # SPAM / REVIEW / PRIORITY DECISION
         
     
+    # MiniLM-first, personalized AI routing.
+    semantic = features.get("semantic_priority", 0.0)
+    personal = features.get("personal_relevance", 0.0)
+    urgency = features.get("urgency", 0.0)
+    action = features.get("action_required", 0.0)
+    sender = features.get("sender_importance", 0.0)
+
+    # MiniLM is the primary importance signal.
+    strong_ai_priority = semantic >= 0.60
+
+    contextual_ai_priority = (
+        semantic >= 0.50
+        and personal >= 0.25
+        and (urgency >= 0.40 or action >= 0.40)
+    )
+
+    personalized_priority = sender >= 0.90
+
     if (
         ai_spam_probability >= 0.90
         and not safeguard
@@ -298,24 +316,11 @@ def route_email(features):
         category = REVIEW
 
     elif (
-        (
-            relevance_score >= PRIORITY_MIN_RELEVANCE
-            and priority_confidence >= PRIORITY_MIN_CONFIDENCE
-        )
-        or (
-            features.get("semantic_relevance", 0) >= 0.50
-            and features.get("personal_relevance", 0) >= 0.25
-            and (
-                features.get("urgency", 0) >= 0.40
-                or features.get("action_required", 0) >= 0.40
-            )
-            and ai_spam_probability < 0.20
-        )
-        or (
-            features["sender_importance"] >= 0.80
-            and features["action_required"] >= 0.40
-            and features["urgency"] >= 0.40
-            and ai_spam_probability < 0.20
+        ai_spam_probability < 0.20
+        and (
+            strong_ai_priority
+            or contextual_ai_priority
+            or personalized_priority
         )
     ):
         category = PRIORITY
