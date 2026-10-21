@@ -375,59 +375,39 @@ def extract_features(email, profile_id):
     subject = email.get("subject", "")
     body = email.get("body", "")
 
+    # Stage 1: DistilBERT spam screening
+    ai_spam = float(
+        predict_spam(f"{subject}\n{body}")["spam_probability"]
+    )
+
+    # Stage 2: MiniLM runs only when spam risk is below 90%.
+    if ai_spam < 0.90:
+        semantic_relevance = semantic_relevance_score(
+            subject, body, profile
+        )
+        semantic_priority = semantic_priority_score(
+            f"{subject}. {body}"
+        )
+    else:
+        semantic_relevance = 0.0
+        semantic_priority = 0.0
+
     features = {
-        "personal_relevance":
-            personal_relevance_score(
-                subject,
-                body,
-                profile
-            ),
-
-        "sender_importance":
-            sender_importance_score(
-                sender,
-                profile
-            ),
-
-        "semantic_relevance":
-            semantic_relevance_score(
-                subject,
-                body,
-                profile
-            ),
-            
-        "semantic_priority":
-            semantic_priority_score(
-                f"{subject}. {body}"
-            ),
-
-
-        "urgency":
-            urgency_score(
-                subject,
-                body
-            ),
-
-        "action_required":
-            action_required_score(
-                subject,
-                body
-            ),
-
-        "historical_preference":
-            historical_preference_score(profile, sender),
-
-                "spam_score":
-            spam_score(
-                sender,
-                subject,
-                body
-            ),
-
-        "ai_spam_probability":
-            predict_spam(
-                f"{subject}\n{body}"
-            )["spam_probability"],
+        "personal_relevance": personal_relevance_score(
+            subject, body, profile
+        ),
+        "sender_importance": sender_importance_score(
+            sender, profile
+        ),
+        "semantic_relevance": semantic_relevance,
+        "semantic_priority": semantic_priority,
+        "urgency": urgency_score(subject, body),
+        "action_required": action_required_score(subject, body),
+        "historical_preference": historical_preference_score(
+            profile, sender
+        ),
+        "spam_score": spam_score(sender, subject, body),
+        "ai_spam_probability": ai_spam,
     }
 
     return features

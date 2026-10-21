@@ -75,8 +75,10 @@ def choose_category(email, profile, model_result):
     baseline = str(model_result.get('category', 'review')).upper()
 
     # Spam is conservative: do not hide a user-important message on one signal.
-    if ai_spam >= 0.90 and not trusted_preference and not positive_matches:
-        return 'SPAM', f'DistilBERT spam probability is high ({ai_spam:.0%}); no explicit important-sender or topic match.'
+    if ai_spam >= 0.90:
+        if trusted_preference:
+            return 'REVIEW', 'High spam probability conflicts with an important-sender preference; verify the sender independently.'
+        return 'SPAM', f'DistilBERT predicts high spam probability ({ai_spam:.0%}); topic relevance does not override spam evidence.'
     if ai_spam >= 0.50 or suspicious:
         return 'REVIEW', 'Suspicious content or substantial spam evidence: review before trusting links or requests.'
     if trusted_preference:
