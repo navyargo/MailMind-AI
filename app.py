@@ -399,6 +399,10 @@ if not filtered:
     st.info("Paste or upload emails to see classification results here.")
 for idx, record in enumerate(filtered):
     category = record["category"]
+    spam_probability = record.get("features", {}).get("ai_spam_probability")
+    if spam_probability is not None:
+        st.caption(f"DistilBERT spam probability: {float(spam_probability):.1%}")
+
     icon = {"PRIORITY": "🔴", "REVIEW": "🟡", "SPAM": "🚫"}.get(category, "✉️")
     with st.expander(f"{icon} {record['subject']} — {record['sender']} [{category}]"):
         st.write(f"**From:** {record['sender']}")
