@@ -111,6 +111,50 @@ def choose_category(email, profile, model_result):
             suffix = ' Account-security content detected; verify independently before acting.' if security else ' Sender address alone does not prove authenticity.'
             return 'PRIORITY', f'Priority because this matches your {reason} and spam evidence is low.' + suffix
         return 'REVIEW', 'Important sender preference matched, but spam evidence warrants manual review.'
+    # Personalized unwanted-promotion detection.
+    # Require multiple marketing signals and low semantic relevance.
+    promotional_phrases = (
+        "unsubscribe", "shop now", "limited time offer",
+        "exclusive offer", "special offer", "recommended for you",
+        "recommendations", "discover new", "explore more",
+        "trending", "sale ends", "discount", "newsletter",
+        "handpicked for you", "this is peak you",
+    )
+
+    promotional_sender_terms = (
+        "recommendations@", "newsletter@", "offers@",
+        "promotions@", "marketing@", "updates.",
+    )
+
+    marketing_hits = sum(
+        phrase in text for phrase in promotional_phrases
+    )
+
+    marketing_sender = any(
+        term in sender_address for term in promotional_sender_terms
+    )
+
+    semantic_relevance = float(
+        f.get("semantic_relevance", 0.0)
+    )
+
+    if (
+        ai_spam < 0.50
+        and not trusted_preference
+        and not positive_matches
+        and not security
+        and (
+            (marketing_sender and marketing_hits >= 1)
+            or marketing_hits >= 3
+        )
+        and semantic_relevance < 0.35
+    ):
+        return (
+            "SPAM",
+            "Unwanted promotional email: marketing signals "
+            "and low personalized relevance."
+        )
+
     if low_matches and not positive_matches:
         return 'REVIEW', f'Lower relevance to your profile (matched: {", ".join(low_matches[:3])}). Low relevance is not proof of spam.'
     if baseline == 'PRIORITY':
