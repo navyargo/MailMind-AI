@@ -31,6 +31,16 @@ h1 {font-weight: 500; color: #202124;}
 [data-testid="stExpander"] summary {font-size: 14px; padding: 6px 12px;}
 [data-testid="stMetric"] {background: #f6f8fc; border: 1px solid #e8eaed; border-radius: 16px; padding: 12px 16px;}
 .stButton > button[kind="primary"] {background: #1a73e8; border: none; border-radius: 20px;}
+div[role='radiogroup'] {gap: 0; flex-wrap: nowrap; overflow-x: auto; border-bottom: 1px solid #dadce0; margin-bottom: 8px;}
+div[role='radiogroup'] > label {background: transparent; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 14px 28px; margin: 0; cursor: pointer; color: #5f6368; transition: background .15s;}
+div[role='radiogroup'] > label:hover {background: #f1f3f4;}
+div[role='radiogroup'] > label > div:first-child {display: none;}
+div[role='radiogroup'] > label p {font-size: 14px; font-weight: 500; margin: 0; color: inherit; white-space: nowrap;}
+div[role='radiogroup'] > label:nth-child(1):has(input:checked) {color: #1a73e8; border-bottom-color: #1a73e8;}
+div[role='radiogroup'] > label:nth-child(2):has(input:checked) {color: #137333; border-bottom-color: #188038;}
+div[role='radiogroup'] > label:nth-child(3):has(input:checked) {color: #3c4043; border-bottom-color: #5f6368;}
+div[role='radiogroup'] > label:nth-child(4):has(input:checked) {color: #d93025; border-bottom-color: #d93025;}
+
 
 </style>
 """, unsafe_allow_html=True)
