@@ -22,6 +22,16 @@ st.markdown("""
 .block-container {padding-top: 2rem; max-width: 1200px;}
 [data-testid="stMetric"] {background: rgba(128,128,128,.08); padding: 18px; border-radius: 12px;}
 .stButton > button {border-radius: 10px;}
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+.stApp {font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;}
+h1 {font-weight: 500; color: #202124;}
+[data-testid="stSidebar"] {background: #f6f8fc;}
+[data-testid="stExpander"] details {background: #fff; border: none; border-bottom: 1px solid #e8eaed; border-radius: 0;}
+[data-testid="stExpander"] details:hover {background: #f2f6fc; box-shadow: inset 4px 0 0 #1a73e8;}
+[data-testid="stExpander"] summary {font-size: 14px; padding: 6px 12px;}
+[data-testid="stMetric"] {background: #f6f8fc; border: 1px solid #e8eaed; border-radius: 16px; padding: 12px 16px;}
+.stButton > button[kind="primary"] {background: #1a73e8; border: none; border-radius: 20px;}
+
 </style>
 """, unsafe_allow_html=True)
 
