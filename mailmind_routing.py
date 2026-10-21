@@ -144,10 +144,9 @@ def choose_category(email, profile, model_result):
         and not positive_matches
         and not security
         and (
-            (marketing_sender and marketing_hits >= 1)
-            or marketing_hits >= 3
+            (marketing_sender and semantic_relevance < 0.60)
+            or (marketing_hits >= 3 and semantic_relevance < 0.35)
         )
-        and semantic_relevance < 0.35
     ):
         return (
             "SPAM",
