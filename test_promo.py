@@ -32,3 +32,16 @@ r3 = {"category": "REVIEW",
       "features": {"ai_spam_probability": 0.05, "spam_score": 0.05,
                    "semantic_relevance": 0.55}}
 print("promo2 ->", choose_category(promo2, profile, r3))
+
+personal = {"sender": "Rahul <rahul@gmail.com>", "subject": "Project review tomorrow",
+            "body": "Please confirm and submit your part before tomorrow 5 PM.",
+            "labels": ["INBOX", "CATEGORY_PERSONAL"], "list_unsubscribe": False}
+r4 = {"category": "REVIEW", "features": {"ai_spam_probability": 0.03, "spam_score": 0.05,
+      "semantic_relevance": 0.3, "urgency": 0.43, "action_required": 0.65}}
+order = {"sender": "Swiggy <noreply@swiggy.in>", "subject": "Your order has been delivered",
+         "body": "Thanks for ordering. Your order was delivered.",
+         "labels": ["INBOX", "CATEGORY_UPDATES"], "list_unsubscribe": False}
+r5 = {"category": "REVIEW", "features": {"ai_spam_probability": 0.02, "spam_score": 0.05,
+      "semantic_relevance": 0.1, "urgency": 0.1, "action_required": 0.1}}
+print("personal ->", choose_category(personal, profile, r4))
+print("order    ->", choose_category(order, profile, r5))

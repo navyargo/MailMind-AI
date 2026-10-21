@@ -237,7 +237,7 @@ def generate_explanation(
                 else:
                  reasons.append(
                 "The available evidence is uncertain, so Review is "
-                "used asdef spam_safeguard_triggered the safe destination."
+                "used as the safe destination."
             )
 
     return " ".join(reasons)

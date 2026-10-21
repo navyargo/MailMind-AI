@@ -177,8 +177,32 @@ def choose_category(email, profile, model_result):
 
     if low_matches and not positive_matches:
         return 'REVIEW', f'Lower relevance to your profile (matched: {", ".join(low_matches[:3])}). Low relevance is not proof of spam.'
+    # Direct personal mail that is time-sensitive and asks for action -> Priority
+    automated = any(t in sender_address for t in (
+        "noreply", "no-reply", "donotreply", "notifications@", "mailer-daemon"))
+    if (
+        "CATEGORY_PERSONAL" in labels
+        and not email.get("list_unsubscribe")
+        and not automated
+        and not bulk_label
+        and ai_spam < 0.20
+        and float(f.get("action_required", 0)) >= 0.40
+        and float(f.get("urgency", 0)) >= 0.40
+    ):
+        return "PRIORITY", "Direct personal email that is time-sensitive and asks for action."
+
     if baseline == 'PRIORITY':
         return 'PRIORITY', str(model_result.get('explanation', 'Priority according to personalized classifier.'))
     if baseline == 'SPAM' and ai_spam < 0.70:
         return 'REVIEW', 'Spam evidence is not strong enough to hide this message automatically.'
+    # Give Review a specific reason instead of a generic one
+    transactional = _topic_matches(subject, body, (
+        "order", "receipt", "invoice", "payment", "otp", "one-time password",
+        "statement", "delivered", "shipped", "booking", "ticket", "refund", "transaction"))
+    if "CATEGORY_UPDATES" in labels or transactional:
+        return "REVIEW", "Order, payment or account notification: kept in Review so you do not miss anything you may need."
+    if bulk_score == 1:
+        return "REVIEW", "Possible newsletter or bulk mail (weak signal only), not strong enough to hide."
+    if positive_matches:
+        return "REVIEW", f"Related to your interests ({', '.join(positive_matches[:3])}) but no important sender, urgency or required action found."
     return 'REVIEW', str(model_result.get('explanation', 'Insufficient evidence for priority or spam.'))
