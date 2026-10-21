@@ -233,14 +233,15 @@ def parse_eml(raw_bytes):
     msg = BytesParser(policy=policy.default).parsebytes(raw_bytes)
     sender = str(msg.get("From") or "Unknown sender")
     subject = str(msg.get("Subject") or "(No subject)")
-    if msg.is_multipart():
-        part = msg.get_body(preferencelist=("plain",))
-        body = part.get_content() if part else ""
-    else:
-        body = msg.get_content()
+    part = msg.get_body(preferencelist=("plain", "html"))
+    body = part.get_content() if part else ""
+    if part is not None and part.get_content_type() == "text/html":
+        body = re.sub(r"(?is)<(style|script).*?>.*?</\1>", " ", str(body))
+        body = re.sub(r"<[^>]+>", " ", body)
     if not str(body).strip():
-        raise ValueError("No readable plain-text email body")
-    return {"sender": sender, "subject": subject, "body": str(body)}
+        raise ValueError("No readable email body")
+    return {"sender": sender, "subject": subject, "body": str(body),
+            "list_unsubscribe": bool(msg.get("List-Unsubscribe"))}
 
 
 def analyze_email(email):
@@ -352,7 +353,9 @@ with gmail_tab:
                         payload = gmail.users().messages().get(userId="me", id=item["id"], format="raw").execute()
                         raw = base64.urlsafe_b64decode(payload["raw"] + "=" * (-len(payload["raw"]) % 4))
                         try:
-                            parsed.append(parse_eml(raw))
+                            _em = parse_eml(raw)
+                            _em["labels"] = payload.get("labelIds", [])
+                            parsed.append(_em)
                             ids.append(item["id"])
                         except ValueError:
                             continue

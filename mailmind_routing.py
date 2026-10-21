@@ -154,6 +154,27 @@ def choose_category(email, profile, model_result):
             "and low personalized relevance."
         )
 
+    # Bulk-mail score: Gmail signals plus text signals
+    labels = set(email.get("labels", []))
+    bulk_label = bool(labels & {"CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL"})
+    bulk_score = (
+        2 * bulk_label
+        + bool(email.get("list_unsubscribe"))
+        + bool(marketing_sender)
+        + (marketing_hits >= 2)
+    )
+    subject_interest = _topic_matches(
+        subject, "", profile.get("interests", []) + profile.get("important_topics", [])
+    )
+    if (
+        ai_spam < 0.50
+        and not trusted_preference
+        and not security
+        and bulk_score >= 2
+        and not (subject_interest and semantic_relevance >= 0.60)
+    ):
+        return "SPAM", "Bulk or promotional email with low relevance to your profile."
+
     if low_matches and not positive_matches:
         return 'REVIEW', f'Lower relevance to your profile (matched: {", ".join(low_matches[:3])}). Low relevance is not proof of spam.'
     if baseline == 'PRIORITY':
