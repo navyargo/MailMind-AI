@@ -52,7 +52,7 @@ def load_user_profile(user_id):
         return None
     row = rows[0]
     profile = {field: row.get(field) or [] for field in (
-        "interests", "important_topics", "important_senders", "important_domains", "low_priority_topics")}
+        "interests", "important_topics", "important_senders", "important_domains", "low_priority_topics", "excluded")}
     profile.update({"name": row.get("name") or "", "role": row.get("role") or "", "course": row.get("role") or ""})
     profile["learned_senders"] = load_learned_senders(user_id)
     return profile
@@ -73,7 +73,7 @@ def load_learned_senders(user_id):
 
 
 def save_user_profile(user_id, profile):
-    fields = ("interests", "important_topics", "important_senders", "important_domains", "low_priority_topics")
+    fields = ("interests", "important_topics", "important_senders", "important_domains", "low_priority_topics", "excluded")
     payload = {"user_id": user_id, "name": profile.get("name", ""), "role": profile.get("role", ""),
                **{field: profile.get(field, []) for field in fields}}
     db_request("POST", "user_profiles", params={"on_conflict": "user_id"},
@@ -172,6 +172,7 @@ def profile_editor():
         senders = st.text_area("Important senders", value=", ".join(current.get("important_senders", [])))
         domains = st.text_area("Important email domains (e.g. github.com, ieee.org; not topic words)", value=", ".join(current.get("important_domains", [])))
         low = st.text_area("Less relevant topics", value=", ".join(current.get("low_priority_topics", [])))
+        excluded = st.text_area("Exclude (senders, domains or topics → SPAM)", value=", ".join(current.get("excluded", [])))
         submitted = st.form_submit_button("Save personalization", type="primary")
         if submitted:
             if not name.strip() or not (interests.strip() or topics.strip()):
@@ -181,7 +182,7 @@ def profile_editor():
                     "name": name.strip(), "role": role.strip(), "course": role.strip(),
                     "interests": terms(interests), "important_topics": terms(topics),
                     "important_senders": terms(senders), "important_domains": terms(domains),
-                    "low_priority_topics": terms(low),
+                    "low_priority_topics": terms(low), "excluded": terms(excluded),
                     "learned_senders": current.get("learned_senders", {}),
                 }
                 try:

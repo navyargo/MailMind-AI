@@ -74,6 +74,30 @@ def choose_category(email, profile, model_result):
     positive_matches = _topic_matches(subject, body, profile.get('interests', []) + profile.get('important_topics', []))
     baseline = str(model_result.get('category', 'review')).upper()
 
+    # User-defined exclusions override AI classification.
+    # Exact sender/domain matches and whole-phrase topic matches.
+    excluded = profile.get("excluded", [])
+    sender_address = _address(email.get("sender"))
+    sender_domain = _domain(sender_address)
+
+    for item in excluded:
+        term = str(item).strip().lower().lstrip("@")
+        if not term:
+            continue
+
+        if "@" in term:
+            matched = sender_address == term
+        elif "." in term and " " not in term:
+            matched = sender_domain == term or sender_domain.endswith("." + term)
+        else:
+            matched = bool(re.search(
+                r"(?<!\w)" + re.escape(term) + r"(?!\w)",
+                text
+            ))
+
+        if matched:
+            return "SPAM", f"Matched your Exclude preference: {item}"
+
     # Spam is conservative: do not hide a user-important message on one signal.
     if ai_spam >= 0.90:
         if trusted_preference:
