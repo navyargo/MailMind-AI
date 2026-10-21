@@ -305,7 +305,7 @@ def route_email(features):
     personalized_priority = sender >= 0.90
 
     if (
-        ai_spam_probability >= 0.90
+        ai_spam_probability >= 0.70
         and not safeguard
         and not conflicting_evidence
     ):

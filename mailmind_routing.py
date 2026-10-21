@@ -99,7 +99,7 @@ def choose_category(email, profile, model_result):
             return "SPAM", f"Matched your Exclude preference: {item}"
 
     # Spam is conservative: do not hide a user-important message on one signal.
-    if ai_spam >= 0.90:
+    if ai_spam >= 0.70:
         if trusted_preference:
             return 'REVIEW', 'High spam probability conflicts with an important-sender preference; verify the sender independently.'
         return 'SPAM', f'DistilBERT predicts high spam probability ({ai_spam:.0%}); topic relevance does not override spam evidence.'
@@ -115,6 +115,6 @@ def choose_category(email, profile, model_result):
         return 'REVIEW', f'Lower relevance to your profile (matched: {", ".join(low_matches[:3])}). Low relevance is not proof of spam.'
     if baseline == 'PRIORITY':
         return 'PRIORITY', str(model_result.get('explanation', 'Priority according to personalized classifier.'))
-    if baseline == 'SPAM' and ai_spam < 0.90:
+    if baseline == 'SPAM' and ai_spam < 0.70:
         return 'REVIEW', 'Spam evidence is not strong enough to hide this message automatically.'
     return 'REVIEW', str(model_result.get('explanation', 'Insufficient evidence for priority or spam.'))

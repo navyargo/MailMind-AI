@@ -380,8 +380,8 @@ def extract_features(email, profile_id):
         predict_spam(f"{subject}\n{body}")["spam_probability"]
     )
 
-    # Stage 2: MiniLM runs only when spam risk is below 90%.
-    if ai_spam < 0.90:
+    # Stage 2: MiniLM runs only when spam risk is below 70%.
+    if ai_spam < 0.70:
         semantic_relevance = semantic_relevance_score(
             subject, body, profile
         )
